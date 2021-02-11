@@ -11,22 +11,19 @@ import math
 
 
 def dfToArray(array, dataFrame, size) :
-# Convert pandas dataFrame to python array. Usefull when you mainpulate deeplabcut csv files
+# Convert pandas dataFrame to python array. Usefull when you manipulate deeplabcut csv files
     for j in range(2, size):
         array[0, j] = float(dataFrame.iloc[j])
         array[np.isnan(array)] = 0
 
 
-
-def velocity(i, V, size, pupil_center):
+def velocity(i, V, pupil_center):
 # Gets the velocity of the pupil center for one frame
 
     if i == 1:
-      V[0, i] = 0
+        V[0, i] = 0
     elif i ==2:
-      V[0, i] = 0
-    elif i == size:
-      V[0, i] = 0
+        V[0, i] = 0
     else :
         V[0, i] = (((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
                     pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2))
@@ -56,7 +53,7 @@ def pupil_center_radius(i, arrayC, PredictedData) :
 
 
 def center_Pupil_avg(C, size,R0):
-# Gets the position (x,y) of the pupil cente for a batch of frames
+# Gets the position (x,y) of the pupil center for a batch of frames
 
     x=0
     y=0
@@ -72,22 +69,25 @@ def center_Pupil_avg(C, size,R0):
 
 
 def scale_factor(i, PredictedData):
-    # Scale factor = horizontal 2D lenght of the eyball, 3cm in c57/BL6 mice
+    # Scale factor = horizontal 2D lenght of the eyball, equals 3cm in c57/BL6 mice
     scale = (((PredictedData[i, 24] - PredictedData[i, 30]) ** (2) )+ ((PredictedData[i, 24] - PredictedData[i, 31]) ** (2))) ** (1 / 2)
     scale_factor = scale/3
     return scale_factor
 
 
-def angular_position(i,scale_factor, radius, C, X0, Y0, Eh, Ev):
+def angular_position(i,scale_factor, radius, C, Eh, Ev, predicted_data):
     # Computes the absolute angle of the eye for one frame, calulation based on Sakatani and Isa, 2007 model
-
+    #TODO : Ajouter conition if vérifiant la probabilité de présence du point
+    #Cornea center
+    X0 = abs(predicted_data[i, 38]- predicted_data[i, 44])
+    Y0 = abs(predicted_data[i, 42]- predicted_data[i, 48])
     # R effective
     Rlens = 1.25 * scale_factor # Rlens = 1.25 cm in c57/BL6 mices
     R = math.sqrt((Rlens*Rlens)- (radius*radius)) - (0.1 * scale_factor) # Epsilon = 0.1 cm in c57/BL6 mices
 
     # Azimutal (Eh) and elevation (Ev) angle computation
-    Eh[0, i] = math.degrees(np.arcsin((C[0, i] - X0[0, 0]) / R))
-    Ev[0, i] = math.degrees(np.arcsin(-(C[1, i] - Y0[0, 0]) / R))
+    Eh[0, i] = math.degrees(np.arcsin((C[0, i] - X0) / R))
+    Ev[0, i] = math.degrees(np.arcsin(-(C[1, i] - Y0) / R))
     Eh[np.isnan(Eh)] = 0
     Ev[np.isnan(Ev)] = 0
 
