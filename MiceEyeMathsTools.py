@@ -17,16 +17,18 @@ def dfToArray(array, dataFrame, size) :
         array[np.isnan(array)] = 0
 
 
-def velocity(i, V, pupil_center):
+def velocity(i, V, pupil_center, time_stp):
 # Gets the velocity of the pupil center for one frame
 
-    if i == 1:
+    if i == 0:
+        V[0, i] = 0
+    elif i ==1:
         V[0, i] = 0
     elif i ==2:
         V[0, i] = 0
     else :
-        V[0, i] = (((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
-                    pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2))
+        V[0, i-1] = (((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
+                    pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2))/(2*time_stp)
 
 
 
@@ -91,39 +93,25 @@ def angular_position(i,scale_factor, radius, C, Eh, Ev, predicted_data):
     Eh[np.isnan(Eh)] = 0
     Ev[np.isnan(Ev)] = 0
 
+def variation_rate(i,PredictedData, var_rate, pupil_center):
+
+    if i == 0 :
+        var_rate[i] = 0
+    else :
+        var_rate[i] = abs((((pupil_center[i, 0] - pupil_center[i - 1, 0])/ pupil_center[i - 1, 0]) +((
+                pupil_center[i, 1] - pupil_center[i - 1, 1])/pupil_center[i - 1, 1]))/2)
+
 
 def global_variation_rate_blink(i, PredictedData):
 # Check if the eye is not moving too strongly and if there is no eye blink
+#Function from the v1 version, might be obsolete
     blink = 0
-    if i == 1 :
-        Tx = 0
-    else :
 
-        Tx = ((((PredictedData[i,0] - PredictedData[i-1,0]) / (PredictedData[i-1,0])) * 100
-        + ((PredictedData[i,3] - PredictedData[ i - 1,3]) / (PredictedData[i - 1,3])) * 100
-        +((PredictedData[i, 6] - PredictedData[i - 1,6]) / (PredictedData[i - 1,6])) * 100
-        +((PredictedData[i, 9] - PredictedData[i - 1, 9]) / (PredictedData[i - 1, 9])) * 100
-        +((PredictedData[i, 12] - PredictedData[i - 1, 12]) / (PredictedData[i - 1, 12])) * 100
-        +((PredictedData[i, 15] - PredictedData[i - 1, 15]) / (PredictedData[i - 1, 15])) * 100
-        +((PredictedData[i, 18] - PredictedData[i - 1, 18]) / (PredictedData[i - 1, 18])) * 100
-        +((PredictedData[i, 21] - PredictedData[i - 1, 22]) / (PredictedData[i-1, 22])) * 100) / 8)
-
-        Ty = (((PredictedData[i, 1] + PredictedData[i - 1, 1]) / (PredictedData[i - 1, 1])) * 100
-        + ((PredictedData[i, 4] - PredictedData[i - 1, 4]) / (PredictedData[i - 1, 4])) * 100
-        + ((PredictedData[i, 7] - PredictedData[i -1, 7]) / (PredictedData[i -1, 7])) * 100
-        + ((PredictedData[i, 10] - PredictedData[i - 1, 10]) / (PredictedData[i - 1, 10])) * 100
-        + ((PredictedData[i, 13] - PredictedData[i - 1, 13]) / (PredictedData[i - 1, 13])) * 100
-        + ((PredictedData[i, 16] - PredictedData[i - 1, 16]) / (PredictedData[i - 1, 16])) * 100
-        + ((PredictedData[i, 19] - PredictedData[i - 1, 19]) / (PredictedData[i - 1, 19])) * 100
-        + ((PredictedData[i, 22] - PredictedData[i - 1, 22]) / (PredictedData[i - 1, 22])) * 100) / 8
-
-        eye_height_var = (((PredictedData[i, 28] - PredictedData[i - 1, 28]) / (PredictedData[i - 1, 28])) * 100
+    eye_height_var = (((PredictedData[i, 28] - PredictedData[i - 1, 28]) / (PredictedData[i - 1, 28])) * 100
         + ((PredictedData[i, 34] - PredictedData[i - 1, 34]) / (PredictedData[i - 1, 34])) * 100) / 2
 
-        if (Tx >= 5.53 or Tx <= -5.53) and (Ty>=3 or Ty<=-3):
-          blink =+1
-        if eye_height_var > 10 or eye_height_var < -10:
-          blink =+1
+    if eye_height_var > 10 or eye_height_var < -10:
+        blink =+1
 
     return blink
 
