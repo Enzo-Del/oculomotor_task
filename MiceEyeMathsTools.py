@@ -72,7 +72,7 @@ def center_Pupil_avg(C, size,R0):
 
 def scale_factor(i, PredictedData):
     # Scale factor = horizontal 2D lenght of the eyball, equals 3cm in c57/BL6 mice
-    scale = (((PredictedData[i, 24] - PredictedData[i, 30]) ** (2) )+ ((PredictedData[i, 24] - PredictedData[i, 31]) ** (2))) ** (1 / 2)
+    scale = (((PredictedData[i, 24] - PredictedData[i, 30]) ** (2) )+ ((PredictedData[i, 25] - PredictedData[i, 31]) ** (2))) ** (1 / 2)
     scale_factor = scale/3
     return scale_factor
 
