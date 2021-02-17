@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Sun Mar  8 11:48:02 2020
 Last modified on
@@ -10,114 +10,138 @@ import numpy as np
 import math
 
 
-def dfToArray(array, dataFrame, size) :
-# Convert pandas dataFrame to python array. Usefull when you manipulate deeplabcut csv files
+def dfToArray(array, data_frame, size):
+    # Convert pandas dataFrame to python array. Usefull when you manipulate deeplabcut csv files
     for j in range(2, size):
-        array[0, j] = float(dataFrame.iloc[j])
+        array[0, j] = float(data_frame.iloc[j])
         array[np.isnan(array)] = 0
 
 
 def velocity(i, V, pupil_center, time_stp):
-# Gets the velocity of the pupil center for one frame
+    # Gets the velocity of the pupil center for one frame
 
     if i == 0:
-        V[0, i] = 0
-    elif i ==1:
-        V[0, i] = 0
-    elif i ==2:
-        V[0, i] = 0
-    else :
-        V[0, i-1] = (((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
-                    pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2))/(2*time_stp)
+        V.append(0)
+    elif i == 1:
+        V.append(0)
+    elif i == 2:
+        V.append(0)
+    else:
+        V.append((((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
+                pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2)) / (2 * time_stp))
 
 
+def pupil_center_radius(i, array_c, predicted_data):
+    # Computes the position (x,y) of the center of the pupil and its radius for one frame
+    dx = 0
+    dy = 0
+    j = 0
+    # Pupil radius estimation, based on an octogon representation of the pupil
+    a = ((((predicted_data[i, 0] - predicted_data[i, 3]) ** (2) + (predicted_data[i, 1] - predicted_data[i, 4]) ** (2)) ** (
+                1 / 2))
+         + (((predicted_data[i, 3] - predicted_data[i, 6]) ** (2) + (predicted_data[i, 4] - predicted_data[i, 7]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 6] - predicted_data[i, 9]) ** (2) + (predicted_data[i, 7] - predicted_data[i, 10]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 9] - predicted_data[i, 12]) ** (2) + (predicted_data[i, 10] - predicted_data[i, 13]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 12] - predicted_data[i, 15]) ** (2) + (predicted_data[i, 13] - predicted_data[i, 16]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 15] - predicted_data[i, 18]) ** (2) + (predicted_data[i, 16] - predicted_data[i, 19]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 18] - predicted_data[i, 21]) ** (2) + (predicted_data[i, 19] - predicted_data[i, 22]) ** (
+                2)) ** (1 / 2))
+         + (((predicted_data[i, 21] - predicted_data[i, 0]) ** (2) + (predicted_data[i, 22] - predicted_data[i, 1]) ** (
+                2)) ** (1 / 2)))
 
-def pupil_center_radius(i, arrayC, PredictedData) :
-# Computes the position (x,y) of the center of the pupil and its radius for one frame
-
-    # Pupil center coordinates computation, based on an octogon representation of the eye
-    a = ((((PredictedData[i, 0]-PredictedData[i, 3])**(2) + (PredictedData[i, 1]-PredictedData[i, 4])**(2))**(1/2))
-    +(((PredictedData[i, 3] - PredictedData[i, 6]) ** (2) + (PredictedData[i, 4] - PredictedData[i, 7]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 6] - PredictedData[i, 9]) ** (2) + (PredictedData[i, 7] - PredictedData[i, 10]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 9] - PredictedData[i, 12]) ** (2) + (PredictedData[i, 10] - PredictedData[i, 13]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 12] - PredictedData[i, 15]) ** (2) + (PredictedData[i, 13] - PredictedData[i, 16]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 15] - PredictedData[i, 18]) ** (2) + (PredictedData[i, 16] - PredictedData[i, 19]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 18] - PredictedData[i, 21]) ** (2) + (PredictedData[i, 19] - PredictedData[i, 22]) ** (2)) ** (1 / 2))
-    +(((PredictedData[i, 21] - PredictedData[i, 0]) ** (2) + (PredictedData[i, 22] - PredictedData[i, 1]) ** (2)) ** (1 / 2)))
-
-    A=a/8
+    A = a / 8
     r = 1.3066 * A
+    # Pupil center estimation
 
-    arrayC[0, i] = PredictedData[i, 18]
-    arrayC[1, i] = PredictedData[i, 19] - r
+    for k in range(4):
+        dx = dx + (predicted_data[i, j] + predicted_data[i, j + 12]) / 2
+        dy = dy + (predicted_data[i, j + 1] + predicted_data[i, j + 13]) / 2
+        j += 3
 
-    return  r
+    pupil_center_x = dx / 4
+    pupil_center_y = dy / 4
+    array_c[0].append(pupil_center_x)
+    array_c[1].append(pupil_center_y)
+
+    return r
 
 
-def center_Pupil_avg(C, size,R0):
-# Gets the position (x,y) of the pupil center for a batch of frames
+def center_Pupil_avg(array_c, size, array_c_avg):
+    # Gets the position (x,y) of the pupil center for a batch of frames
 
-    x=0
-    y=0
+    x = 0
+    y = 0
     for j in range(1, size):
-        x = x + C[0, j]
-        y = y + C[1, j]
+        x = x + array_c[0, j]
+        y = y + array_c[1, j]
         if math.isnan(x) == True:
             x = 0
         if math.isnan(y) == True:
             y = 0
-    R0[0, 1]= x/size
-    R0[1, 1]= y/size
+    array_c_avg[0, 1] = x / size
+    array_c_avg[1, 1] = y / size
 
 
-def scale_factor(i, PredictedData):
+def scale_factor(i, predicted_data):
     # Scale factor = horizontal 2D lenght of the eyball, equals 3cm in c57/BL6 mice
-    scale = (((PredictedData[i, 24] - PredictedData[i, 30]) ** (2) )+ ((PredictedData[i, 25] - PredictedData[i, 31]) ** (2))) ** (1 / 2)
-    scale_factor = scale/3
+    scale = (((predicted_data[i, 24] - predicted_data[i, 30]) ** (2)) + (
+            (predicted_data[i, 25] - predicted_data[i, 31]) ** (2))) ** (1 / 2)
+
+    scale_factor = scale / 3
     return scale_factor
 
 
-def angular_position(i,scale_factor, radius, C, Eh, Ev, predicted_data):
+def angular_position(i, scale_factor, radius, pupil_center, azimut, elev, predicted_data):
     # Computes the absolute angle of the eye for one frame, calulation based on Sakatani and Isa, 2007 model
-    #TODO : Ajouter conition if vérifiant la probabilité de présence du point
-    #Cornea center
-    X0 = abs(predicted_data[i, 38]- predicted_data[i, 44])
-    Y0 = abs(predicted_data[i, 42]- predicted_data[i, 48])
+    # Cornea center
+    j = 0
+    dx = 0
+    dy = 0
+    for k in range(2):
+        dx = dx + (predicted_data[i, j + 36] + predicted_data[i, j + 42])/2
+        dy = dy + (predicted_data[i, j + 37] - predicted_data[i, j + 43])/2
+        j +=3
+
+    cornea_center_x = dx/2
+    cornea_center_y = dy/2
     # R effective
-    Rlens = 1.25 * scale_factor # Rlens = 1.25 cm in c57/BL6 mices
-    R = math.sqrt((Rlens*Rlens)- (radius*radius)) - (0.1 * scale_factor) # Epsilon = 0.1 cm in c57/BL6 mices
+    r_lens = float(1.25 * float(scale_factor))  # Rlens = 1.25 cm in c57/BL6 mices
+    r_factor = math.sqrt((r_lens**2) - (radius[i]**2)) - (0.1 * scale_factor)  # Epsilon = 0.1 cm in c57/BL6 mices
 
     # Azimutal (Eh) and elevation (Ev) angle computation
-    Eh[0, i] = math.degrees(np.arcsin((C[0, i] - X0) / R))
-    Ev[0, i] = math.degrees(np.arcsin(-(C[1, i] - Y0) / R))
-    Eh[np.isnan(Eh)] = 0
-    Ev[np.isnan(Ev)] = 0
-
-def variation_rate(i,PredictedData, var_rate, pupil_center):
-
-    if i == 0 :
-        var_rate[i] = 0
-    else :
-        var_rate[i] = abs((((pupil_center[i, 0] - pupil_center[i - 1, 0])/ pupil_center[i - 1, 0]) +((
-                pupil_center[i, 1] - pupil_center[i - 1, 1])/pupil_center[i - 1, 1]))/2)
+    azimut.append(math.degrees(np.arcsin((pupil_center[0][i] - cornea_center_x) / r_factor)))
+    elev.append(math.degrees(np.arcsin(-(pupil_center[1][i] - cornea_center_x) / r_factor)))
+    #azimut[np.isnan(int(azimut))] = 0
+    #elev[np.isnan(elev)] = 0
 
 
-def global_variation_rate_blink(i, PredictedData):
-# Check if the eye is not moving too strongly and if there is no eye blink
-#Function from the v1 version, might be obsolete
+def variation_rate(i, var_rate, pupil_center):
+    if i == 0:
+        var_rate.append(0)
+    else:
+        var_rate.append(abs((((pupil_center[i, 0] - pupil_center[i - 1, 0]) / pupil_center[i - 1, 0]) + ((
+            pupil_center[i, 1] - pupil_center[i - 1, 1]) / pupil_center[i - 1, 1])) / 2))
+
+
+def global_variation_rate_blink(i, predicted_data):
+    # Check if the eye is not moving too strongly and if there is no eye blink
+    # Function from the v1 version, might be obsolete
     blink = 0
 
-    eye_height_var = (((PredictedData[i, 28] - PredictedData[i - 1, 28]) / (PredictedData[i - 1, 28])) * 100
-        + ((PredictedData[i, 34] - PredictedData[i - 1, 34]) / (PredictedData[i - 1, 34])) * 100) / 2
+    eye_height_var = (((predicted_data[i, 28] - predicted_data[i - 1, 28]) / (predicted_data[i - 1, 28])) * 100
+                      + ((predicted_data[i, 34] - predicted_data[i - 1, 34]) / (predicted_data[i - 1, 34])) * 100) / 2
 
     if eye_height_var > 10 or eye_height_var < -10:
-        blink =+1
+        blink = +1
 
     return blink
 
+
 def circle_pos(screen_dist, circle_pos_angle):
-    circle_pos = (math.tan(math.degrees(circle_pos_angle)))*screen_dist
+    circle_pos = (math.tan(math.degrees(circle_pos_angle))) * screen_dist
     return abs(circle_pos)
-
-
-
