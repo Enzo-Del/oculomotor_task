@@ -212,7 +212,7 @@ class VisualStimulation():
         self.stim_pos = MiceEyeMathsTools.circle_pos(screen_dist, stim_angle_pos)
         self.screen_dist = screen_dist
         self.stim_radius = stim_radius
-        self.stim = visual.Circle(win=self.win, radius=stim_radius, units='deg', fillColor=[1, 1, 1], lineColor=[1, 1, 1],
+        self.visual_stim = visual.Circle(win=self.win, radius=stim_radius, units='deg', fillColor=[1, 1, 1], lineColor=[1, 1, 1],
                              edges=128)
         self.win.flip()
 
@@ -220,14 +220,14 @@ class VisualStimulation():
     def stim(self, direction):
         self.win.color = [-1, -1, -1]
         if 'temporal' in direction:
-            self.stim.pose = [-self.stim_pos, 0]
+            self.visual_stim.pose = [-self.stim_pos, 0]
         if 'nasal' in direction:
-            self.stim.pose = [self.stim_pos, 0]
+            self.visual_stim.pose = [self.stim_pos, 0]
         if 'center' in direction:
-            self.stim.pose = [0, 0]
+            self.visual_stim.pose = [0, 0]
 
-        self.stim.draw()
-        self.stim.flip()
+        self.visual_stim.draw()
+        self.win.flip()
 
     def whiteScreen(self):
 
@@ -264,7 +264,7 @@ class Gui():
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Training device for an oculomotor behavioral task")
-        self.root.geometry('600x600')
+        self.root.geometry('900x900')
         self.root.tk.call('wm', 'iconphoto', self.root._w, tk.PhotoImage(file='icon.PNG'))
         tk.Label(self.root, text="Mice name :").grid(row=0, column=0,sticky = W)
         tk.Label(self.root, text="Trials number :").grid(row=1, column=0,sticky = W)
@@ -308,7 +308,7 @@ class Gui():
         self.inactivity_pun_widget.grid(row=6, column=0, sticky=W)
         self.centered_dur_entry.grid(row=8, column=1)
         self.point_radius_entry = tk.Entry(self.root)
-        self.point_radius_entry.insert(END, '5')
+        self.point_radius_entry.insert(END, '1')
         self.point_radius_entry.grid(row=9, column=1)
         self.precision_entry = tk.Entry(self.root)
         self.precision_entry.insert(END, '5')
@@ -376,19 +376,20 @@ class Gui():
     def dispFrame(self, frame):
         self.lmain.imgtk = frame
         self.lmain.configure(image=frame)
+        self.root.update()
 
     def updateAngle(self, az, el):
         self.az_pos_label.configure(text='Azimutal angle :' + str(az) + 'degrees')
         self.el_pos_label.configure(text='Elevation angle :' + str(el)+ 'degrees')
 
     def updateLog(self, content):
-        self.log.insert(END, datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f') + str(content) + "\r\n")
-
+        self.log.insert(END, datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f : ') + str(content) + "\r\n")
+        self.root.update()
 
     def updatelogText(self, content):
 
         # Save content to text file
-        self.text_file.write(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f') + str(content) + "\r\n" )
+        self.text_file.write(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f : ') + str(content) + "\r\n" )
 
 
     def close(self):
@@ -414,8 +415,9 @@ centered = False
 start_calib = False
 saccade_detected =False
 inactivity_punition = False
+punished = False
 punition_dur = 1
-point_angle_pos = 5
+point_angle_pos = 2
 time_between_trials = 4
 time2wait_centered = 2
 ioi = True #TODO : Make a function to handle IOI via BNC cable
@@ -443,9 +445,11 @@ parameters = {
     "Punish if inactivity" : user_interface.inactivity_pun,
     "Punition duration" : int(1)
 }
+
 counter = 0
 trial_counter = 0
 start_centered_time = 0
+pun_time_stmp = 0
 stims = []
 pupil_center = [[],[]]
 pupil_radius = []
@@ -459,6 +463,7 @@ centered_time_stmp = time.time()
 time_stp_start = 0
 
 while finished ==False:
+    print(counter)
     time_stp = time.time() - time_stp_start
     time_stp_start = time_stp
     frame = cam.getImage()
@@ -474,43 +479,48 @@ while finished ==False:
 
         MiceEyeMathsTools.angular_position(counter, scale_f, pupil_radius, pupil_center, azimutal_angle, elevation_angle,
                                            predicted_data)
-        print(azimutal_angle[counter])
+
         blink = MiceEyeMathsTools.global_variation_rate_blink(counter, predicted_data)
         #Save all the data in a file
-        measures_str = "Pupil area : {} mm^2 / Azimutal angle : {}  degrees / Elevation angle : {}  degrees".format(((pupil_radius[counter]*(10/scale_f))**2)*math.pi, azimutal_angle[counter], elevation_angle[counter])
+        measures_str = "Pupil area : {} mm^2 / Azimutal angle : {}  degrees / Elevation angle : {}  degrees".format(round(((pupil_radius[counter]*(10/scale_f))**2)*math.pi, 3), round(azimutal_angle[counter], 3), round(elevation_angle[counter], 3))
         user_interface.updatelogText(measures_str)
         #Display the frame and angles on the GUI
         img = pose_obj.dispPredictions(frame, predicted_data, counter)
         user_interface.dispFrame(img)
         #licks[counter] = water_reward.lick()# Check if mice licks
-        counter += 1
-        user_interface.updateAngle(azimutal_angle[counter], elevation_angle[counter])
+        user_interface.updateAngle(round(azimutal_angle[counter],3), round(elevation_angle[counter], 3))
 
-        if azimutal_angle[counter] < 2 and azimutal_angle[counter] > -2 and elevation_angle[counter] < 2 and elevation_angle[counter] > -2 and trial_started ==False and time.time()-centered_time_stmp <parameters["Centered fixation duration"] and centered ==False:
-            if start_centered_time == 0:
-                start_centered_time = time.time()
-            if (time.time()-start_centered_time) > parameters["Max duration of centered stim"]:
+        if  trial_started ==False and time.time()-centered_time_stmp < parameters["Max duration of centered stim"] and centered ==False:
+            if azimutal_angle[counter] < 2 and azimutal_angle[counter] > -2 and elevation_angle[counter] < 2 and elevation_angle[counter] > -2  :
+                if start_centered_time == 0:
+                    start_centered_time = time.time()
+                elif time.time()-start_centered_time > parameters["Centered fixation duration"]:
+                    centered = True
+                    start_centered_time = 0
+                    user_interface.updatelogText(
+                        'Mice has fixed the center during {} s'.format(parameters["Centered fixation duration"]))
+                    user_interface.updateLog('Mice has fixed the center during {} s'.format(parameters["Centered fixation duration"]))
+            elif centered ==False and trial_started ==False :
+                start_centered_time = 0
+
+
+        elif trial_started ==False and centered == False and (time.time()-centered_time_stmp) > parameters["Max duration of centered stim"]:
                 start_centered_time =0
                 centered =True
                 user_interface.updatelogText(
                     'Mice did not fix the center during {} s, trial start anyway'.format(parameters["Centered fixation duration"]))
+                user_interface.updateLog("Mice did not fix the center during {} s, trial start anyway".format(parameters["Centered fixation duration"]))
 
-        elif centered ==False and  trial_started ==False and time.time()-centered_time_stmp <parameters["Centered fixation duration"]:
-            start_centered_time =0
-        elif centered ==False and  trial_started ==False and time.time()-centered_time_stmp >parameters["Centered fixation duration"]:
-            centered =True
-            start_centered_time = 0
-            user_interface.updatelogText('Mice has fixed the center during {} s'.format(parameters["Centered fixation duration"]))
 
         if trial_started == False and centered == True and ioi ==True:
             if trial_counter > 1 and parameters["Visual stim type"] =='Both':
-                stims[trial_counter] = screen.gambleStim(stims[trial_counter-1], stims[trial_counter-2])
+                stims.append(screen.gambleStim(stims[trial_counter-1], stims[trial_counter-2]))
 
             elif parameters["Visual stim type"] =='Both' :
-                stims[trial_counter] = screen.gambleStim('Nasal', 'Temporal')
+                stims.append(screen.gambleStim('Nasal', 'Temporal'))
 
             else :
-                stims[trial_counter] = parameters["Visual stim type"]
+                stims.append(parameters["Visual stim type"])
 
             trial_tmsp = time.time()
             screen.stim(stims[trial_counter])
@@ -523,10 +533,13 @@ while finished ==False:
             screen.blackScreen()
             user_interface.updatelogText('Stim finished')
 
-        if trial_started ==True and (time.time() - pun_time_stmp) > parameters["Punition duration"]:
+
+        if trial_started ==True and (time.time() - pun_time_stmp) > parameters["Punition duration"] and punished == True:
             #Remove blank screen punition if finished
             screen.blackScreen()
             user_interface.updatelogText('Punition finished')
+            punished = False
+            pun_time_stmp = 0
 
         if trial_started == True and (time.time()-trial_tmsp) < parameters["Answer window duration"] :
             if blink ==True: #Leave the trial if the mice blinks her eye to avoid false saccades detections
@@ -541,7 +554,7 @@ while finished ==False:
                 if azimutal_angle[counter] <= (-parameters["Visual stim angular position"] + parameters["Precision"]) and azimutal_angle[counter] >= (-parameters["Visual stim angular position"] - parameters["Precision"]) :
                     user_interface.updatelogText('Nasal saccade')
                     if stims[trial_counter] == 'Nasal saccade' :
-                       # water_reward.reward()
+                        #water_reward.reward()
                         saccade_detected = True
                         user_interface.updatelogText('Rewarded')
                     elif screen.gamble_punition(user_interface.punition_proba) == 0:
@@ -564,6 +577,7 @@ while finished ==False:
                         user_interface.updatelogText('Punition')
                         screen.whiteScreen()
                         pun_time_stmp = time.time()
+                        punished = True
                     else :
                         saccade_detected = True
                         user_interface.updatelogText('Bad saccade but no punition')
@@ -572,6 +586,7 @@ while finished ==False:
                     screen.whiteScreen()
                     pun_time_stmp = time.time()
                     saccade_detected = True
+                    punished = True
                 else :
                     user_interface.updatelogText('Incomplete saccade but no punition')
                     saccade_detected = True
@@ -585,13 +600,17 @@ while finished ==False:
                 centered = False
                 centered_time_stmp = time.time()
                 user_interface.updatelogText('Trial finished')
+                trial_counter += 1
+
         if trial_counter == parameters["Number of trials"]:
             #Close the loop of all the trials are made
             finished =True
 
+
     else :
         print('There was a probability of prediction below 90 %, frame not counted in the trial. ')
 
+    counter += 1
 cam.close()
 user_interface.close()
 

@@ -27,8 +27,8 @@ def velocity(i, V, pupil_center, time_stp):
     elif i == 2:
         V.append(0)
     else:
-        V.append((((pupil_center[i, 0] - pupil_center[i - 2, 0]) ** (2) + (
-                pupil_center[i, 1] - pupil_center[i - 2, 1]) ** (2)) ** (1 / 2)) / (2 * time_stp))
+        V.append((((pupil_center[0][i] - pupil_center[0][i-2]) ** (2) + (
+                pupil_center[1][i] - pupil_center[1][i-2]) ** (2)) ** (1 / 2)) / (2 * time_stp))
 
 
 def pupil_center_radius(i, array_c, predicted_data):
@@ -83,8 +83,8 @@ def center_Pupil_avg(array_c, size, array_c_avg):
             x = 0
         if math.isnan(y) == True:
             y = 0
-    array_c_avg[0, 1] = x / size
-    array_c_avg[1, 1] = y / size
+    array_c_avg.append(x / size)
+    array_c_avg.append(y / size)
 
 
 def scale_factor(i, predicted_data):
@@ -104,18 +104,18 @@ def angular_position(i, scale_factor, radius, pupil_center, azimut, elev, predic
     dy = 0
     for k in range(2):
         dx = dx + (predicted_data[i, j + 36] + predicted_data[i, j + 42])/2
-        dy = dy + (predicted_data[i, j + 37] - predicted_data[i, j + 43])/2
+        dy = dy + (predicted_data[i, j + 37] + predicted_data[i, j + 43])/2
         j +=3
 
     cornea_center_x = dx/2
     cornea_center_y = dy/2
     # R effective
-    r_lens = float(1.25 * float(scale_factor))  # Rlens = 1.25 cm in c57/BL6 mices
+    r_lens = 1.25 * (scale_factor)  # Rlens = 1.25 cm in c57/BL6 mices
     r_factor = math.sqrt((r_lens**2) - (radius[i]**2)) - (0.1 * scale_factor)  # Epsilon = 0.1 cm in c57/BL6 mices
 
     # Azimutal (Eh) and elevation (Ev) angle computation
-    azimut.append(math.degrees(np.arcsin((pupil_center[0][i] - cornea_center_x) / r_factor)))
-    elev.append(math.degrees(np.arcsin(-(pupil_center[1][i] - cornea_center_x) / r_factor)))
+    azimut.append(round(math.degrees(np.arcsin((pupil_center[0][i] - cornea_center_x) / r_factor)),3))
+    elev.append(round(math.degrees(np.arcsin(-(pupil_center[1][i] - cornea_center_y) / r_factor)),3))
     #azimut[np.isnan(int(azimut))] = 0
     #elev[np.isnan(elev)] = 0
 
@@ -124,19 +124,20 @@ def variation_rate(i, var_rate, pupil_center):
     if i == 0:
         var_rate.append(0)
     else:
-        var_rate.append(abs((((pupil_center[i, 0] - pupil_center[i - 1, 0]) / pupil_center[i - 1, 0]) + ((
-            pupil_center[i, 1] - pupil_center[i - 1, 1]) / pupil_center[i - 1, 1])) / 2))
+        var_rate.append(abs((((pupil_center[0][i] - pupil_center[0][i-1]) /pupil_center[0][i-1]) + ((
+            pupil_center[1][i] - pupil_center[1][i-1]) / pupil_center[1][i-1])) / 2))
 
 
 def global_variation_rate_blink(i, predicted_data):
     # Check if the eye is not moving too strongly and if there is no eye blink
     # Function from the v1 version, might be obsolete
     blink = 0
+    if i> 0:
+        eye_height_var = (abs(predicted_data[i-1, 28] - predicted_data[i-1, 34])) / (abs(predicted_data[i, 28] -
+                                                                                       predicted_data[i, 34]))
 
-    eye_height_var = (((predicted_data[i, 28] - predicted_data[i - 1, 28]) / (predicted_data[i - 1, 28])) * 100
-                      + ((predicted_data[i, 34] - predicted_data[i - 1, 34]) / (predicted_data[i - 1, 34])) * 100) / 2
-
-    if eye_height_var > 10 or eye_height_var < -10:
+    else : eye_height_var =0
+    if eye_height_var > 2 :
         blink = +1
 
     return blink
