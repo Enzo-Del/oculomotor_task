@@ -143,6 +143,7 @@ def global_variation_rate_blink(i, predicted_data):
     return blink
 
 
-def circle_pos(screen_dist, circle_pos_angle):
-    circle_pos = (math.tan(math.degrees(circle_pos_angle))) * screen_dist
-    return abs(circle_pos)
+def circle_pos(screen_dist, circle_pos_angle, stim_radius):
+    circle_pos = ((math.tan(math.radians(circle_pos_angle))) * screen_dist)*(1024/5)
+    stim_radius_pos = ((math.tan(math.radians(stim_radius))) * screen_dist)*(1024/5)
+    return abs(int(circle_pos)), abs(int(stim_radius_pos))
