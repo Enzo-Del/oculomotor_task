@@ -259,7 +259,8 @@ class VisualStimulation():
 
 
 class Gui():
-    def __init__(self):
+    def __init__(self, pump):
+        self.pump = pump
         self.root = tk.Tk()
         self.root.title("Training device for an oculomotor behavioral task")
         self.root.geometry('700x700')
@@ -326,7 +327,10 @@ class Gui():
         self.stim_type_cbox.grid(row=5, column=1)
         self.go_button = tk.Button(self.root, text="Go !", command=self.start)
         self.go_button.grid(column=3, row=15)
+        self.water_button = tk.Button(self.root, text="Dispense sequence of water", command=self.dispense)
+        self.water_button.grid(column=3, row=15)
         self.go_button_var = tk.IntVar()
+        self.water_button_var = tk.IntVar()
         self.go_button.wait_variable(self.go_button_var)
         self.root.children.clear()
         self.root.update()
@@ -377,6 +381,9 @@ class Gui():
         self.training = bool(self.check_var2.get())
         self.clear() # Clear widgets
 
+    def dispense(self):
+        self.pump.reward()
+
 
     def dispFrame(self, frame):
         self.lmain.imgtk = frame
@@ -418,7 +425,8 @@ modelfolder =(r"C:\Users\opto-delamarree\Desktop\Eye_validation-Enzo-2020-08-08\
 dlc_config = load_config(r"C:\Users\opto-delamarree\Desktop\Eye_validation-Enzo-2020-08-08\dlc-models\iteration-0\Eye_validationAug8-trainset95shuffle1\test\pose_cfg.yaml")
 today = date.today()
 today = today.strftime('%d%m%Y')
-user_interface = Gui()
+#water_reward = PeristalticPump('COM9', 2)
+user_interface = Gui(water_reward)
 finished = False
 trial_started = False
 centered = False
@@ -435,7 +443,7 @@ cam = Camera(filename_V, user_interface.mice_name, 640, 360,30,0)
 predicted_data = np.zeros((100000, dlc_config['num_outputs'] * 3 * len(dlc_config['all_joints_names'])))
 screen = VisualStimulation(1, int(user_interface.visual_stim_angle_pos), 6, int(user_interface.point_radius))
 screen.blackScreen()
-#water_reward = PeristalticPump('COM9', 2)
+
 
 # Parameters dictionnary
 parameters = {
@@ -674,4 +682,4 @@ while finished ==False:
 cam.close()
 user_interface.close()
 
-#TODO : interface avec résultats + progression
+
