@@ -2,7 +2,7 @@
 """
 Created on Sun Mar  8 11:48:02 2020
 Last modified on
-@author: Enzo Delamarre
+@author: Enzo Delamarre -- Lab Vanni
 Version : mono
 """
 
@@ -17,7 +17,6 @@ print('Importing TensorFlow ...')
 import tensorflow as tf
 print('Done')
 import numpy as np
-import deeplabcut
 import cv2
 import os
 import tkinter as tk
@@ -33,11 +32,9 @@ config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
 print('Done')
 import os.path
-from deeplabcut.pose_estimation_tensorflow.nnet import predict
-from deeplabcut.pose_estimation_tensorflow.config import load_config
+from dlclive import DLCLive
 from tqdm import tqdm
 import tensorflow as tf
-from deeplabcut.utils import auxiliaryfunctions
 from skimage.util import img_as_ubyte
 import time
 import psychopy
@@ -49,6 +46,7 @@ import MiceEyeMathsTools
 from datetime import datetime
 from tkinter import scrolledtext
 from threading import Thread
+from deeplabcut.pose_estimation_tensorflow.config import load_config
 
 ########################################################################################################################
                           #                 CLASS DEFINITION                 #
@@ -69,24 +67,42 @@ class Camera():
             print("Communication Successfully started with camera {}".format(self, self.camID))
         except:
             print('The camera is not connected or occupied, please check')
-        self.cam.set(3,self.res_width) # Resolution change
+        self.cam.set(3, self.res_width)  # Resolution change
         self.cam.set(4, self.res_height)
         self.video_type = cv2.VideoWriter_fourcc(*'mp4v') # Video format
         self.record = False
         today = date.today()
         today = today.strftime('%d%m%Y')
-        self.out = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\TOM'+chr(92)+ str(today)+'_'+str(self.mice_name) +'.mp4', self.video_type, self.FPS, (self.res_width, self.res_height), grayscale)
+        self.out = cv2.VideoWriter(r'C:\Users\taches-comportements\Desktop\oculomotor_task_v2.1'+chr(92)+ str(today)+'_'+str(self.mice_name) +'.mp4', self.video_type, self.FPS, (self.res_width, self.res_height), grayscale)
+
+        # Thread start
+        self.thread = Thread(target = self.update, args=())
+        self.thread.daemon = True
+        self.thread.start()
+        print('Acquisition thread started')
+
 
     def getImage(self):
-        global frame
-        try :
-            ret, frame = self.cam.read()
-        except :
-            print('Camera object is not reading any frame, check if camera is wired or already occupied')
-        if self.grayscale:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        self.out.write(frame)
-        return frame
+        #global frame
+       # try :
+           # ret, frame = self.cam.read()
+       # except :
+           # print('Camera object is not reading any frame, check if camera is wired or already occupied')
+
+
+        #self.out.write(self.frame)
+        #[200:550, 300:800]
+        return self.frame[85:550, 250:900]
+
+
+    def update(self):
+        while True:
+            if self.cam.isOpened():
+                (self.status, self.frame) = self.cam.read()
+                if self.grayscale:
+                    self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+                self.out.write(self.frame)
+
 
     def close(self):
         self.cam.release()
@@ -96,70 +112,52 @@ class Camera():
 class PosePrediction():
     """ Class for DLC prediction with DLC functions
     """
-    def __init__(self, config_file, model_folder, pose_file_config, res_width, res_height):
-        # Hard coded variables
-        batchsize = 1
-        batch_ind = 0
-        batch_num = 0
-
-        self.config_file = config_file
+    def __init__(self, model_folder):
         self.model_folder = model_folder
-        self.pose_file_config = pose_file_config
-        self.x_range = list(range(0, (3 * len(self.pose_file_config['all_joints_names'])), 3))
-        self.y_range = list(range(1, (3 * len(self.pose_file_config['all_joints_names'])), 3))
-        self.pose_file_config['num_outputs'] = self.config_file.get('num_outputs', self.pose_file_config.get('num_outputs', 1))
-        try:
-            Snapshots = np.array(
-                [fn.split('.')[0] for fn in os.listdir(os.path.join(self.model_folder, 'train')) if "index" in fn])
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                "Snapshots not found! It seems the dataset for shuffle %s has not been trained/does not exist.\n "
-                "Please train it before using it to analyze videos.\n Use the function 'train_network' to train the network for shuffle %s." % (
-                    1, 1))
 
-        if self.config_file['snapshotindex'] == 'all':
-            print(
-                "Snapshotindex is set to 'all' in the config.yaml file. Running video analysis with all snapshots is "
-                "very costly! Use the function 'evaluate_network' to choose the best the snapshot. For now, changing snapshot index to -1!")
-            snapshotindex = -1
-        else:
-            snapshotindex = config_file['snapshotindex']
-
-        increasing_indices = np.argsort([int(m.split('-')[1]) for m in Snapshots])
-        Snapshots = Snapshots[increasing_indices]
-        print("Using %s" % Snapshots[snapshotindex], "for model", self.model_folder)
-        self.pose_file_config['init_weights'] = os.path.join(self.model_folder, 'train', Snapshots[snapshotindex])
-        self.pose_file_config['batch_size'] = self.config_file['batch_size']
-        self.pose_file_config['num_outputs'] = self.config_file.get('num_outputs', self.pose_file_config.get('num_outputs', 1))
-        self.frame_batch = np.empty((batchsize, res_width, res_height, 3), dtype='ubyte')
-        self.sess, self.inputs, self.outputs = predict.setup_GPUpose_prediction(self.pose_file_config)
-        self.pose_tensor = predict.extract_GPUprediction(self.outputs, self.pose_file_config)  # extract_output_tensor(outputs, dlc_cfg)
         self.colors = [(0, 0, 255), (0, 165, 255), (0, 255, 255), (0, 255, 0), (255, 0, 0), (240, 32, 160), (240, 32, 160),
-                  (240, 32, 160)]
+                  (240, 32, 160),(246, 30, 160) , (246, 30, 160), (246, 30, 160)]
+        self.dlc_live = DLCLive(self.model_folder)
+
+
+    def init_infer(self, frame):
+        pose = self.dlc_live.init_inference(frame)
+        pose[:, [0, 1, 2]] = pose[:, [1, 0, 2]]
+        self.pose = pose.flatten()
+        return self.pose
 
     def get(self, frame):
         frame = img_as_ubyte(frame)
-        pose = self.sess.run(self.pose_tensor,feed_dict={self.inputs: np.expand_dims(frame, axis=0).astype(float)})
-        pose[:, [0, 1, 2]] = pose[:, [1, 0, 2]]
+        pose =self.dlc_live.get_pose(frame)
+        #pose[:, [0, 1, 2]] = pose[:, [1, 0, 2]]
         self.pose = pose.flatten()
         return self.pose
 
     def dispPredictions(self, frame, pose, counter):
         for x_plt, y_plt, c in zip(self.x_range, self.y_range, self.colors):
             image = cv2.drawMarker(frame, (int(pose[counter, :][x_plt]), int(pose[counter, :][y_plt])), c,cv2.MARKER_STAR, 5, 2)
-
+            #Essayer cv2 line + point central de la pupille
         img = Image.fromarray(image)
         imgtk = ImageTk.PhotoImage(image=img)
         return imgtk
 
+
+    def dispPredictionsv2(self, frame, counter, pupil_center, radius):
+
+        image = cv2.drawMarker(frame, (int(pupil_center[0][counter]), int(pupil_center[1][counter])),(0,0,255),cv2.MARKER_STAR, 5, 2)
+        image = cv2.circle(image,  (int(pupil_center[0][counter]), int(pupil_center[1][counter])), radius, (0,255,255), 1)
+        img = Image.fromarray(image)
+        imgtk = ImageTk.PhotoImage(image=img)
+        return imgtk
     def checkProbability(self, pose, counter):
         # Check the probabilty of the pose prediciton
-        if all(float(p) >= 0.9 for p in pose[counter, 2:3:47]):
+        if all(float(p) >= 0.90 for p in pose[counter, 2:3:340]):
             self.probability = True
         else:
             self.probability = False
 
         return self.probability
+
 
 class ArduinoNano():
 
@@ -183,11 +181,16 @@ class PeristalticPump(ArduinoNano):
         self.it = pyfirmata.util.Iterator(self.board)
         self.it.start()
         self.lick_GPIO.mode = pyfirmata.INPUT
-        self.time_ON = 0.05 #TODO : Change with pump calibration
+        self.time_ON = 0.010 #TODO : Change with pump calibration
 
     def reward(self):
         self.reward_GPIO.write(1)
         time.sleep(self.time_ON)
+        self.reward_GPIO.write(0)
+
+    def reward_flush(self):
+        self.reward_GPIO.write(1)
+        time.sleep(1)
         self.reward_GPIO.write(0)
 
     def lick(self):
@@ -198,7 +201,7 @@ class PeristalticPump(ArduinoNano):
             lick = False
         return lick
 
-    def close(self):
+    def close_ard(self):
         self.board.exit()
 
 
@@ -263,9 +266,10 @@ class VisualStimulation():
 class Gui(PeristalticPump):
     def __init__(self, com_port, water_spout_qty):
         PeristalticPump.__init__(self,com_port, water_spout_qty)
+        self.exp_started = False
         self.root = tk.Tk()
         self.root.title("Training device for an oculomotor behavioral task")
-        self.root.geometry('700x700')
+        self.root.geometry('700x720')
         self.root.tk.call('wm', 'iconphoto', self.root._w, tk.PhotoImage(file='icon.PNG'))
         tk.Label(self.root, text="Mice name :").grid(row=0, column=0,sticky = W)
         tk.Label(self.root, text="Trials number :").grid(row=1, column=0,sticky = W)
@@ -282,10 +286,11 @@ class Gui(PeristalticPump):
         tk.Label(self.root, text="WARNING: Make sure that the mice").grid(row=14, column=0,sticky = W)
         tk.Label(self.root, text= "is well head-fixed and that the ").grid(row=15, column=0,sticky = W)
         tk.Label(self.root, text= "cameras and screens are centered !").grid(row=16, column=0,sticky = W)
+        tk.Label(self.root, text="Si tout va mal, c'est que tout va bien. MV").grid(row=25, column=0, sticky=SW)
         self.check_var = tk.IntVar()
         self.button_var = tk.IntVar()
         self.mice_name_entry = tk.Entry(self.root)
-        self.mice_name_entry.insert(END, '310')
+        #self.mice_name_entry.insert(END, '310')
         self.mice_name_entry.grid(row=0, column=1)
         self.trials_number_entry = tk.Entry(self.root)
         self.trials_number_entry.insert(END, '30')
@@ -313,7 +318,7 @@ class Gui(PeristalticPump):
         self.training_widget.grid(row=13, column=0, sticky=W)
         self.centered_dur_entry.grid(row=8, column=1)
         self.point_radius_entry = tk.Entry(self.root)
-        self.point_radius_entry.insert(END, '25')
+        self.point_radius_entry.insert(END, '50')
         self.point_radius_entry.grid(row=9, column=1)
         self.precision_entry = tk.Entry(self.root)
         self.precision_entry.insert(END, '5')
@@ -322,21 +327,27 @@ class Gui(PeristalticPump):
         self.time_between_trials_entry.insert(END, '4')
         self.time_between_trials_entry.grid(row=11, column=1)
         self.visual_stim_angle_pos_entry = tk.Entry(self.root)
-        self.visual_stim_angle_pos_entry.insert(END, '20')
+        self.visual_stim_angle_pos_entry.insert(END, '8')
         self.visual_stim_angle_pos_entry.grid(row=12, column=1)
         self.stim_type_cbox = ttk.Combobox(self.root, values = ['Both', 'Temporal','nasal'])
         self.stim_type_cbox.current(0)
         self.stim_type_cbox.grid(row=5, column=1)
         self.go_button = tk.Button(self.root, text="Go !", command=self.start)
-        self.go_button.grid(column=3, row=15)
+        self.go_button.grid(column=1, row=18)
         self.water_button = tk.Button(self.root, text="Dispense sequence of water", command=self.dispense)
-        self.water_button.grid(column=3, row=15)
+        self.water_button.grid(column=1, row=15)
+        self.preview_button = tk.Button(self.root, text="Preview video", command=self.displayVideoStream)
+        self.preview_button.grid(column=1, row=16)
+        self.flush_button = tk.Button(self.root, text="Flush water", command=self.flush)
+        self.flush_button.grid(column=1, row=17)
         self.go_button_var = tk.IntVar()
         self.water_button_var = tk.IntVar()
+        self.flush_button_var = tk.IntVar()
+        self.preview_button_var = tk.IntVar()
         self.go_button.wait_variable(self.go_button_var)
         self.root.children.clear()
         self.root.update()
-
+        self.root.geometry('700x720')
         # Video live update
         self.app = Frame(self.root, bg="white")
         self.app.grid(row=0, column=0)
@@ -344,18 +355,22 @@ class Gui(PeristalticPump):
         self.lmain.grid(row=0, column=0)
         self.az_pos_label = tk.Label(self.root, text = 'Azimutal angle :')
         self.el_pos_label = tk.Label(self.root, text = 'Elevation angle :')
+        self.pa_pos_label = tk.Label(self.root, text='Pupil area :')
+        self.FPS_label = tk.Label(self.root, text='FPS :')
         self.az_pos_label.grid(row=2, column=0)
         self.el_pos_label.grid(row=3, column=0)
+        self.pa_pos_label.grid(row=4, column=0)
+        self.FPS_label.grid(row=5, column=0)
         self.root.update()
         # Init log box
-        self.log = scrolledtext.ScrolledText(self.root, width=70, height=15)
-        self.log.grid(row=4, column=0)
+        self.log = scrolledtext.ScrolledText(self.root, width=80, height=15)
+        self.log.grid(row=6, column=0)
         self.log.see(END)
 
         # Init log text file
         try :
             self.text_file = open(
-                r"C:\Users\opto-delamarree\PycharmProjects\oculomotor_task" + chr(92) + str(date.today()) + '_' + str(
+                r"C:\Users\taches-comportements\Desktop\oculomotor_task_v2.1" + chr(92) + str(date.today()) + '_' + str(
                     self.mice_name) + '.txt', 'w')
             self.text_file.write("Experiment started on : " + datetime.now().strftime("%d/%m/%Y %H:%M:%S") +"\r\n")
         except :
@@ -365,6 +380,7 @@ class Gui(PeristalticPump):
 
     def start(self):
         # Get experience parameters
+        self.exp_started = True
         self.go_button_var.set(0)
         self.mice_name = str(self.mice_name_entry.get())
 
@@ -381,21 +397,32 @@ class Gui(PeristalticPump):
         self.visual_stim_angle_pos = int(self.visual_stim_angle_pos_entry.get())
         self.inactivity_pun = bool(self.check_var1.get())
         self.training = bool(self.check_var2.get())
-        self.close() #Close connection with arduino
+        self.close_ard() #Close connection with arduino
         self.clear() # Clear widgets
+
 
     def dispense(self):
         self.reward() # Reward
 
 
-    def dispFrame(self, frame):
-        self.lmain.imgtk = frame
-        self.lmain.configure(image=frame)
-        self.root.update()
+    def flush(self):
+        self.reward_flush()
 
-    def updateAngle(self, az, el):
+    def dispFrame(self, frame):
+        if self.exp_started :
+            self.lmain.imgtk = frame
+            self.lmain.configure(image=frame)
+            self.root.update()
+        else :
+            self.lmain1.imgtk = frame
+            self.lmain1.configure(image=frame)
+            self.rootp.update()
+
+    def updateAngle(self, az, el, pa, fps):
         self.az_pos_label.configure(text='Azimutal angle :' + str(az) + ' degrees')
         self.el_pos_label.configure(text='Elevation angle :' + str(el)+ ' degrees')
+        self.pa_pos_label.configure(text='Pupil area :' + str(pa) + ' mm^2')
+        self.FPS_label.configure(text='FPS :' + str(fps) + ' frames/s')
 
     def updateLog(self, content):
         self.log.insert(END, datetime.now().strftime('%H:%M:%S.%f : ') + str(content) + "\r\n")
@@ -405,32 +432,66 @@ class Gui(PeristalticPump):
     def updatelogText(self, content):
 
         # Save content to text file
-        self.text_file.write(datetime.now().strftime('%H:%M:%S.%f')[:-3] + str(content) + "\r\n" )
+        self.text_file.write(datetime.now().strftime('%H:%M:%S.%f')[:-3] + str(' ' + content) + "\r\n" )
+
+    def displayVideoStream(self):
+        self.rootp =tk.Toplevel()
+        self.rootp.title("Video preview")
+        self.rootp.geometry('1280x795')
+        self.cam = cv2.VideoCapture(0)
+        self.cam.set(3, 1280)  # Resolution change
+        self.cam.set(4, 720)
+        self.app1 = Frame(self.rootp, bg="white")
+        self.app1.grid(row=0, column=0, sticky = N)
+        self.lmain1 = Label(self.app1)
+        self.lmain1.grid(row=0, column=0 ,sticky = N)
+        self.placement_button = tk.Button(self.rootp, text="Mice is well-placed", command=self.close_preview)
+        self.placement_button.grid(column=0, row=3)
+        tk.Label(self.rootp, text="Make sure the head with the eye is in the square").grid(row=1, column=0)
+        self.water_button = tk.Button(self.rootp, text="Dispense sequence of water", command=self.dispense)
+        self.water_button.grid(column=0, row=2)
+        self.go_placement_var = tk.IntVar()
+        self.dispense_button_var = tk.IntVar()
+        while self.exp_started == False:
+
+            self.ret, self.frame = self.cam.read()
+            cv2.rectangle(self.frame, (250, 100), (900, 600), (0, 255, 0), 2)
+            img = Image.fromarray(self.frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.dispFrame(imgtk)
+
+        return None
+
+    def close_preview(self):
+        self.rootp.destroy()
+        self.cam.release()
+
 
     def clear(self):
         list = self.root.grid_slaves()
         for l in list:
             l.destroy()
 
+
     def close(self):
         self.root.destroy()
         self.text_file.close()
-
 
 
 ########################################################################################################################
                              #                 MAIN PROGRAMM                 #
 ########################################################################################################################
 
-filename_V = r'C:\Users\opto-delamarree\Desktop\presentation\WIN_20200808_14_09_02_Prodownsampled.mp4'
-cfg = auxiliaryfunctions.read_config(r"C:\Users\opto-delamarree\Desktop\Eye_validation-Enzo-2020-08-08\config.yaml")
-modelfolder =(r"C:\Users\opto-delamarree\Desktop\Eye_validation-Enzo-2020-08-08\dlc-models\iteration-0\Eye_validationAug8-trainset95shuffle1")
-dlc_config = load_config(r"C:\Users\opto-delamarree\Desktop\Eye_validation-Enzo-2020-08-08\dlc-models\iteration-0\Eye_validationAug8-trainset95shuffle1\test\pose_cfg.yaml")
+filename_V = r'C:\Users\taches-comportements\Pictures\Camera Roll\WIN_20210407_08_46_21_Pro.mp4'
+#cfg = auxiliaryfunctions.read_config(r"C:\Users\taches-comportements\Desktop\TOM-net_v0.9-Enzo-2021-03-20\config.yaml")
+modelfolder =(r"C:\Users\taches-comportements\Desktop\TOM-net_v0.9-Enzo-2021-03-20\exported-models\DLC_TOM-net_v0.9_mobilenet_v2_1.0_iteration-0_shuffle-1")
+dlc_config = load_config(r"C:\Users\taches-comportements\Desktop\TOM-net_v0.9-Enzo-2021-03-20\dlc-models\iteration-0\TOM-net_v0.9Mar20-trainset95shuffle1\test\pose_cfg.yaml")
+#pose_file_config['num_outputs'] = config_file.get('num_outputs', pose_file_config.get('num_outputs', 1))
 today = date.today()
 today = today.strftime('%d%m%Y')
-
+pose_obj = PosePrediction(modelfolder)
 user_interface = Gui('COM9', 2)
-#water_reward = PeristalticPump('COM9', 2)
+water_reward = PeristalticPump('COM9', 2)
 finished = False
 trial_started = False
 centered = False
@@ -442,12 +503,10 @@ stim_finished = False
 centered_stim_started = False
 punish_finished = False
 ioi = True #TODO : Make a function to handle IOI via BNC cable
-pose_obj = PosePrediction(cfg,modelfolder, dlc_config, 640, 360)
-cam = Camera(filename_V, user_interface.mice_name, 640, 360,30,0)
-predicted_data = np.zeros((100000, dlc_config['num_outputs'] * 3 * len(dlc_config['all_joints_names'])))
-screen = VisualStimulation(1, int(user_interface.visual_stim_angle_pos), 6, int(user_interface.point_radius))
+cam = Camera(filename_V, user_interface.mice_name, 1280, 720,30,1)
+predicted_data = np.zeros((10000, 42))
+screen = VisualStimulation(2, int(user_interface.visual_stim_angle_pos), 10, int(user_interface.point_radius))
 screen.blackScreen()
-
 
 # Parameters dictionnary
 parameters = {
@@ -482,15 +541,22 @@ elevation_angle = []
 licks = []
 start_stmp = time.time()
 centered_time_stmp = time.time()
-time_stp_start = 0
-
+time_stp_start = time.time()
+FPS = 0
+reward = 0
 while finished ==False:
 
+
+    frame = cam.getImage()
+    if counter == 0:
+        predicted_data[counter, :] =  pose_obj.init_infer(frame)
     time_stp = time.time() - time_stp_start
     time_stp_start = time_stp
-    frame = cam.getImage()
+    if counter % 5 :
+        FPS = counter / (time.time() - time_stp_start)
     predicted_data[counter, :] = pose_obj.get(frame)
-    probability = pose_obj.checkProbability(predicted_data, counter)
+    #probability = pose_obj.checkProbability(predicted_data, counter)
+    probability = True
     if probability :
         #Computation
         scale_f = MiceEyeMathsTools.scale_factor(counter, predicted_data) #Scale factor
@@ -507,10 +573,10 @@ while finished ==False:
         measures_str = "Pupil area : {} mm^2 / Azimutal angle : {}  degrees / Elevation angle : {}  degrees".format(round(((pupil_radius[counter]*(10/scale_f))**2)*math.pi, 3), round(azimutal_angle[counter], 3), round(elevation_angle[counter], 3))
         user_interface.updatelogText(measures_str)
         #Display the frame and angles on the GUI
-        img = pose_obj.dispPredictions(frame, predicted_data, counter)
+        img = pose_obj.dispPredictionsv2(frame, counter, pupil_center, int(pupil_radius[counter]))
         user_interface.dispFrame(img)
-        #licks[counter] = water_reward.lick()# Check if mice licks
-        user_interface.updateAngle(round(azimutal_angle[counter],3), round(elevation_angle[counter], 3))
+
+        user_interface.updateAngle(round(azimutal_angle[counter],3), round(elevation_angle[counter], 3), round(((pupil_radius[counter]*(10/scale_f))**2)*math.pi, 3), round(FPS, 2))
 
         if  trial_started ==False and time.time()-centered_time_stmp < parameters["Max duration of centered stim"] and centered ==False:
             if centered_stim_started == False:
@@ -521,7 +587,7 @@ while finished ==False:
                     'Centering start')
                 user_interface.updateLog(
                     'Centering start')
-            if azimutal_angle[counter] < 2 and azimutal_angle[counter] > -2 and elevation_angle[counter] < 2 and elevation_angle[counter] > -2  :
+            if azimutal_angle[counter] < 5 and azimutal_angle[counter] > -5 and elevation_angle[counter] < 5 and elevation_angle[counter] > -5  :
                 if start_centered_time == 0:
                     start_centered_time = time.time()
                 elif time.time()-start_centered_time > parameters["Centered fixation duration"]:
@@ -584,26 +650,30 @@ while finished ==False:
             pun_time_stmp = 0
 
         if trial_started == True and (time.time()-trial_tmsp) < parameters["Answer window duration"] :
+
             if blink ==True: #Leave the trial if the mice blinks her eye to avoid false saccades detections
                 trial_started=False
                 user_interface.updatelogText('Mice blinked, restarting trial')
-                user_interface.updateLog('Mice blinked, restarting trial')
+                user_interface.updateLog('Mice blinked, restarting trial...')
 
             #Saccade detection
-            elif variation_rate[counter] > 5 and pupil_velocity[counter] > 2 :
+
+            elif variation_rate[counter] > 2.5  : # A CHECKER (AFFICHER CONSOLE) and pupil_velocity[counter] > 0.5
                 saccade_counter += 1
+                print('seuil déclanché : {}'.format(round(variation_rate[counter],2)))
                 # if training mode is enabled, check if the mice did a saccade : TODO : Revoir cette fonction apres pratique en fonction de l'apprentissage
                 if parameters["training"] and saccade_detected == False:
                     saccade_detected = True
                     user_interface.updatelogText('Rewarded')
                     user_interface.updateLog('Rewarded')
-                    # water_reward.reward()
+                    water_reward.reward()
+                    reward +=1
 
             elif saccade_counter !=0 and saccade_detected == False and parameters["training"] == False :
                 if azimutal_angle[counter] <= (-parameters["Visual stim angular position"] + parameters["Precision"]) and azimutal_angle[counter] >= (-parameters["Visual stim angular position"] - parameters["Precision"]) :
                     user_interface.updatelogText('Nasal saccade')
                     if stims[trial_counter] == 'Nasal saccade' :
-                        #water_reward.reward()
+                        water_reward.reward()
                         saccade_detected = True
                         user_interface.updatelogText('Rewarded')
                         user_interface.updateLog('Rewarded')
@@ -620,7 +690,7 @@ while finished ==False:
                 elif azimutal_angle[counter] <= (parameters["Visual stim angular position"] + parameters["Precision"]) and azimutal_angle[counter] >= (parameters["Visual stim angular position"] - parameters["Precision"]) :
                     user_interface.updatelogText('Temporal saccade')
                     if stims[trial_counter] == 'Temporal saccade' :
-                        #water_reward.reward()
+                        water_reward.reward()
                         saccade_detected = True
                         user_interface.updatelogText('Rewarded')
                         user_interface.updateLog('Rewarded')
@@ -676,14 +746,17 @@ while finished ==False:
                 trial_counter += 1
 
     else :
-        print('There was a probability of prediction below 90 %, frame not counted in the trial. ')
+        print('There was a probability of prediction below 90 %, frame not counted in the trial... ')
 
     if trial_counter == parameters["Number of trials"]:
-        #Close the loop of all the trials are made
+        #Close the loop if all the trials are made
         finished =True
     counter += 1
+    licks.append(water_reward.lick())  # Check if mice licks
 
 cam.close()
 user_interface.close()
-
+print('Trials finished, please consult .txt files to get infos')
+print('Number of rewards : {}'.format(reward))
+sys.exit()
 

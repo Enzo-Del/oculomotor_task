@@ -60,28 +60,28 @@ class CAMS():
         cam1.set(3,640)
         cam1.set(4,360)
         filename = (self.base_filename + str(self.cam_IDs[0]) + '.' + self.format_type)
-        out1 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\calib-camera-1.mp4', self.fourcc,
-                               self.FPS, (640, 360),0)
+        out1 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\c6-camera-1.mp4', self.fourcc,
+                               self.FPS, (640, 360),1)
 
         cam2 = cv2.VideoCapture(self.cam_IDs[1])
         cam2.set(3, 640)
         cam2.set(4, 360)
         filename = (self.base_filename + str(self.cam_IDs[1]) + '.' + self.format_type)
-        out2 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\calib-camera-2.mp4', self.fourcc,
-                               self.FPS, (640, 360),0)
+        out2 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\c6-camera-2.mp4', self.fourcc,
+                               self.FPS, (640, 360),1)
         cam3 = cv2.VideoCapture(self.cam_IDs[2])
         cam3.set(3, 640)
         cam3.set(4, 360)
         filename = (self.base_filename + str(self.cam_IDs[2]) + '.' + self.format_type)
-        out3 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\calib-camera-3.mp4', self.fourcc,
-                               self.FPS, (640, 360), 0)
+        out3 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\c6-camera-3.mp4', self.fourcc,
+                               self.FPS, (640, 360), 1)
 
         cam4 = cv2.VideoCapture(self.cam_IDs[3])
         cam4.set(3, 640)
         cam4.set(4, 360)
         filename = (self.base_filename + str(self.cam_IDs[0]) + '.' + self.format_type)
-        out4 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\calib-camera-4.mp4', self.fourcc,
-                               self.FPS, (640, 360), 0)
+        out4 = cv2.VideoWriter(r'C:\Users\opto-delamarree\Desktop\c6-camera-4.mp4', self.fourcc,
+                               self.FPS, (640, 360), 1)
         while (True):
             # Capture frame-by-frame
 
@@ -95,19 +95,19 @@ class CAMS():
             gray3 = cv2.cvtColor(frame3, cv2.COLOR_BGR2GRAY)
             gray4 = cv2.cvtColor(frame4, cv2.COLOR_BGR2GRAY)
             if (self.record):
-                out1.write(gray1)
-                out2.write(gray2)
-                out3.write(gray3)
-                out4.write(gray4)
+                out1.write(frame1)
+                out2.write(frame2)
+                out3.write(frame3)
+                out4.write(frame4)
                 if (time.time()-self.start_time) >= self.acq_dur :
                     print('quitting')
                     break
 
             # Display the resulting frame
-            cv2.imshow('frame1', gray1)
-            cv2.imshow('frame2', gray2)
-            cv2.imshow('frame3', gray3)
-            cv2.imshow('frame4', gray4)
+            cv2.imshow('frame1', frame1)
+            cv2.imshow('frame2', frame2)
+            cv2.imshow('frame3', frame3)
+            cv2.imshow('frame4', frame4)
             ret = cv2.waitKey(1)
 
             if ret & 0xFF == ord('r'):
