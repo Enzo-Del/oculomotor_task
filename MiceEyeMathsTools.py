@@ -88,45 +88,59 @@ def center_Pupil_avg(array_c, size, array_c_avg):
 
 
 def scale_factor(i, predicted_data):
-    # Scale factor = horizontal 2D lenght of the eyball, equals 3cm in c57/BL6 mice
+    # Scale factor = horizontal 2D lenght of the eyball, equals 3mm in c57/BL6 mice
     scale = (((predicted_data[i, 24] - predicted_data[i, 30]) ** (2)) + (
             (predicted_data[i, 25] - predicted_data[i, 31]) ** (2))) ** (1 / 2)
 
-    scale_factor = scale / 3
+    scale_factor = scale/3
+
     return scale_factor
 
 
 def angular_position(i, scale_factor, radius, pupil_center, azimut, elev, predicted_data):
-    # Computes the absolute angle of the eye for one frame, calulation based on Sakatani and Isa, 2007 model
+    # Computes the absolute angle of the eye for one frame, calculation based on Sakatani and Isa, 2007 model
     # Cornea center
     j = 0
-    dx = 0
-    dy = 0
-    for k in range(2):
-        dx = dx + (predicted_data[i, j + 36] + predicted_data[i, j + 42])/2
-        dy = dy + (predicted_data[i, j + 37] + predicted_data[i, j + 43])/2
-        j +=3
 
-    cornea_center_x = dx/2
-    cornea_center_y = dy/2
+    #dx =  predicted_data[i,  36]
+    #dy = predicted_data[i, 37]
+    dx = (predicted_data[i,  24] +  predicted_data[i,  30])/2
+    dy =  (predicted_data[i,  28] +  predicted_data[i,  34])/2
+    cornea_center_x = dx
+    cornea_center_y = dy
     # R effective
-    r_lens = 1.25 * (scale_factor)  # Rlens = 1.25 cm in c57/BL6 mices
-    r_factor = math.sqrt((r_lens**2) - (radius[i]**2)) - (0.1 * scale_factor)  # Epsilon = 0.1 cm in c57/BL6 mices
-
+    r_lens = 1.25 * (scale_factor)  # Rlens = 1.25 mm in c57/BL6 mices
+    try :
+        r_factor = math.sqrt((r_lens**2) - (radius[i]**2)) - (0.1 * scale_factor)  # Epsilon = 0.1 mm in c57/BL6 mices
+    except :
+       # raise ValueError
+        r_factor = math.nan
+        pass
     # Azimutal (Eh) and elevation (Ev) angle computation
-    azimut.append(round(math.degrees(np.arcsin((pupil_center[0][i] - cornea_center_x) / r_factor)),3))
-    elev.append(round(math.degrees(np.arcsin(-(pupil_center[1][i] - cornea_center_y) / r_factor)),3))
+    try:
+        azimut.append(round(math.degrees(np.arcsin((pupil_center[0][i] - cornea_center_x) / r_factor)),3)-5)
+        elev.append(round(math.degrees(np.arcsin(-(pupil_center[1][i] - cornea_center_y) / r_factor)),3))
+    except :
+       # raise ValueError
+        azimut.append(math.nan)
+        elev.append(math.nan)
+        pass
     #azimut[np.isnan(int(azimut))] = 0
     #elev[np.isnan(elev)] = 0
+
 
 
 def variation_rate(i, var_rate, pupil_center):
     if i == 0:
         var_rate.append(0)
     else:
-        var_rate.append(abs((((pupil_center[0][i] - pupil_center[0][i-1]) /pupil_center[0][i-1]) + ((
-            pupil_center[1][i] - pupil_center[1][i-1]) / pupil_center[1][i-1])) / 2))
+        var_rate.append(abs((((pupil_center[0][i] - pupil_center[0][i-1]) /pupil_center[0][i-1])))*1000)
 
+def variation_rate_az(i, var_rate, az):
+    if i == 0:
+        var_rate.append(0)
+    else:
+        var_rate.append(abs((((az[i] - az[i-1]) / 30)))*100)
 
 def global_variation_rate_blink(i, predicted_data):
     # Check if the eye is not moving too strongly and if there is no eye blink
@@ -137,13 +151,15 @@ def global_variation_rate_blink(i, predicted_data):
                                                                                        predicted_data[i, 34]))
 
     else : eye_height_var =0
-    if eye_height_var > 2 :
-        blink = +1
+    if eye_height_var > 1.5 :
+        blink = True
+
 
     return blink
 
 
 def circle_pos(screen_dist, circle_pos_angle, stim_radius):
-    circle_pos = ((math.tan(math.radians(circle_pos_angle))) * screen_dist)*(1024/5)
-    stim_radius_pos = ((math.tan(math.radians(stim_radius))) * screen_dist)*(1024/5)
+    circle_pos = ((math.tan(math.radians(circle_pos_angle))) * screen_dist)*(1024/15.6)
+    stim_radius_pos = ((math.tan(math.radians(stim_radius))) * screen_dist)*(1024/15.6)
     return abs(int(circle_pos)), abs(int(stim_radius_pos))
+
